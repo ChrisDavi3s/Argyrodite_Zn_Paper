@@ -1,0 +1,43 @@
+## Electronic convergence 
+PREC = Accurate    
+EDIFF = 1e-6        
+ENCUT = 600         
+ISMEAR = 0         
+SIGMA = 0.05       
+AMIX = 0.4          
+BMIX = 0.7          
+KSPACING = 0.25     
+KGAMMA = True       
+ALGO = All
+
+# Single Point Calculation Settings
+IBRION = -1  
+NSW = 0      
+ISIF = 2     
+ISYM = 0
+
+# Electronic and Magnetic Structure
+ISPIN = 1
+LASPH = True 
+NELM = 300   
+NELMIN = 4   
+LREAL = Auto  
+
+## SCAN+rVV10 Potential
+METAGGA = SCAN
+LUSE_VDW = True
+BPARAM = 15.7
+CPARAM = 0.0093
+
+# Parallelisation (HPC dpdnt)
+KPAR = 2
+NCORE = 8
+
+# Output Settings
+LWAVE  = .FALSE.
+LORBIT = 0
+LCHARG = FALSE
+
+# Start Settings
+ISTART = 0
+ICHARG = 0

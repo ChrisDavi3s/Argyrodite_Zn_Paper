@@ -1,0 +1,98 @@
+run: [train, test]
+
+cutoff_radius: 5.5
+chemical_symbols: [Li, Zn, P, S, Br, Cl]
+model_type_names: ${chemical_symbols}
+
+data:
+    _target_: nequip.data.datamodule.ASEDataModule
+    split_dataset:
+        file_path: gen_19_stress.extxyz
+        train: 0.84
+        test: 0.08
+        val: 0.08
+    transforms:
+        - _target_: nequip.data.transforms.NeighborListTransform
+          r_max: ${cutoff_radius}
+
+        - _target_: nequip.data.transforms.ChemicalSpeciesToAtomTypeMapper
+          model_type_names: ${model_type_names}
+          chemical_species_to_atom_type_map: ${list_to_identity_dict:${model_type_names}}
+    seed: 14
+    train_dataloader:
+        _target_: torch.utils.data.DataLoader
+        batch_size: 2
+        num_workers: 2
+        shuffle: true
+    val_dataloader:
+        _target_: torch.utils.data.DataLoader
+        batch_size: 8
+        num_workers: 4
+    test_dataloader:
+        _target_: torch.utils.data.DataLoader
+    stats_manager:
+        _target_: nequip.data.CommonDataStatisticsManager
+        type_names: ${model_type_names}
+trainer:
+    _target_: lightning.Trainer
+    enable_checkpointing: true
+    max_epochs: 120
+    check_val_every_n_epoch: 1
+    log_every_n_steps: 5
+    gradient_clip_val: 100
+    gradient_clip_algorithm: norm
+    callbacks:
+        - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+          dirpath: ${hydra:runtime.output_dir}
+          save_last: true
+        - _target_: lightning.pytorch.callbacks.LearningRateMonitor
+          logging_interval: epoch
+    logger:
+        _target_: lightning.pytorch.loggers.wandb.WandbLogger
+        project: Argyrodites_Isambard
+        entity: {my_wandb_entity}
+        name: ft_from_scratch_g19_2
+        save_dir: ${hydra:runtime.output_dir}
+
+training_module:
+    _target_: nequip.train.EMALightningModule
+    ema_decay: 0.99
+    loss:
+        _target_: nequip.train.EnergyForceStressLoss
+        per_atom_energy: true
+        coeffs:
+            total_energy: 1.0
+            forces: 30.0
+            stress: 3.0
+
+    val_metrics:
+        _target_: nequip.train.EnergyForceStressMetrics
+        coeffs:
+            total_energy_rmse: 1.0
+            per_atom_energy_rmse: null
+            forces_rmse: 1.0
+            stress_rmse: 1.0
+            total_energy_mae: null
+            per_atom_energy_mae: null
+            forces_mae: null
+            stress_mae: null
+
+    train_metrics: ${training_module.val_metrics} 
+        ${training_module.val_metrics} 
+    optimizer:
+        _target_: torch.optim.AdamW
+        lr: 2e-4 # Pretty high learning rate, but we have a scheduler that will anneal it down, and we are doing a lot of epochs. Also, the original Allegro paper used 1e-3 with AdamW for training from scratch, so this is an order of magnitude lower than that.
+        weight_decay: 1e-4
+    lr_scheduler:
+        scheduler:
+            _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+            T_0: 30 
+            T_mult: 1
+            eta_min: 1e-6 # Minimum LR
+        interval: epoch
+        frequency: 1
+
+    model:
+        _target_: nequip.model.ModelFromPackage
+        package_path: {HPC_path}/base_model_argy_zn.nequip.zip
+        compile_mode: compile

@@ -1,0 +1,65 @@
+# Active Learning Generation Configuration
+
+md_params:
+  input_file: "./Li_removed.extxyz"               # Initial structure to start MD from
+  output_dir: "active_learning_runs"              # Directory to save MD trajectories
+  resume: false                                   # Skip completed runs if True
+  model_path: "epoch=17-step=2232.ckpt.ase.nequip.pt2" # ML Potential to drive dynamics
+  device: "cuda"                                  # Compute device (cuda or cpu)
+  freeze_z_pct: 0.0                               # Bottom & top % of Z-axis to freeze (0 to 1). Best for NVT
+  relax: true                                     # Run geometry optimization before MD
+  relax_fmax: 0.5                                 # Fmax threshold for relaxation (eV/A)
+  relax_steps: 1000                               # Max steps for relaxation
+  max_force_relax_ev_a: 100                       # Stop relax if force exceeds this
+  relax_isotropic: false                          # Maintain cell shape during relaxation
+  ensemble: "nvt"                                 # Thermodynamic ensemble: nve, nvt, npt
+  isotropic: false                                # NPT isotropic cell dynamics
+  timestep_fs: 1.0                                # MD timestep in femtoseconds
+  steps: 5000                                     # Total MD steps per run
+  temp_k: 525                                     # MD Temperature in Kelvin
+  dump_freq: 25                                   # Save frame every N steps
+  pressure_bar: 1.01325                           # External pressure for NPT
+  friction: 0.01                                  # Langevin friction for NVT
+  t_damp_fs: 100.0                                # Thermostat damping (NPT)
+  p_damp_fs: 2000.0                               # Barostat damping (NPT)
+  max_force_ev_a: 30.0                            # Stop MD if forces go above this (crash threshold)
+  crash_buffer_size: 25                           # Keep memory of N frames before a crash
+
+committee_params:
+  runs_dir: "./active_learning_runs"              # Directory reading MD trajectories
+  output_json: "stats.json"                       # Dump stats here
+  uncertainty_key: "uncertainty"                  # Key representing committee variance
+  use_base_forces: true                           # Reuse trajectory forces to save time
+  models:                                         # Committee member paths
+    - "model_1.nequip.pt2"
+    - "model_2.nequip.pt2"
+  device: "cuda"                                  # Compute device (cuda or cpu)
+  overwrite: false                                # Overwrite existing scoring
+
+selection_recipe:
+  # Available selectors: max_info, max_stress_info, max_force, closest_distance, furthest_distance, last_valid, random
+  runs_dir: "./active_learning_runs"
+  output_extxyz: "selected_frames.extxyz"
+  uncertainty_key: "uncertainty"
+  spacing: 5                                      # Minimum index separation between picks
+  duplicate_policy: "pick_next"                   # "pick_next" to skip overlaps, "overwrite" to replace
+  filters: []                                     # Global bounds, e.g. [{"type": "min_distance", "species": ["S", "S"], "threshold": 1.5}]
+  
+  selectors_completed:
+    - type: "max_stress_info"
+      key: "stress_uncertainty"
+      n: 2
+    - type: "max_info"
+      key: "max_uncertainty"
+      n: 2
+
+  selectors_failed:
+    - type: "last_valid"
+      n: 1
+      offset: 1           # steps to walk back from the final recorded frame
+      max_force: 15.0     # only take the frame if max force is <= 15
+    - type: "max_force"
+      n: 2
+    - type: "max_info"
+      key: "max_uncertainty"
+      n: 10

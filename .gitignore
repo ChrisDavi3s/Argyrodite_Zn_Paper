@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+Training_Data/25600_128_training_run.extxyz
+.gitignore
+Training_Data/combined_VASP_gen_012.extxyz
+.gitignore
+Training_Data/95160_scan_training_data_combined_outside.extxyz
